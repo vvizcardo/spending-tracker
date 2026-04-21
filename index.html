@@ -186,6 +186,32 @@ html,body{background:var(--bg);color:var(--text);font-family:var(--sans);height:
 .fx-input:focus{border-color:var(--accent);}
 .type-badge{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:4px;border:1px solid var(--border);cursor:pointer;}
 
+/* CURRENCY SWITCHER */
+.cur-switcher{display:flex;align-items:center;gap:6px;padding:8px 20px 0;flex-shrink:0;}
+.cur-switcher-label{font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.08em;}
+.cur-pill{font-family:var(--mono);font-size:10px;font-weight:600;padding:4px 10px;border-radius:12px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);cursor:pointer;transition:all 0.15s;}
+.cur-pill.active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent);}
+
+/* IMAGE PICKER */
+.img-picker-wrap{display:flex;align-items:center;gap:12px;margin-bottom:13px;}
+.img-preview{width:52px;height:52px;border-radius:12px;background:var(--bg3);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:24px;overflow:hidden;cursor:pointer;flex-shrink:0;}
+.img-preview img{width:100%;height:100%;object-fit:cover;}
+.img-picker-btns{display:flex;flex-direction:column;gap:6px;}
+.img-picker-btn{font-family:var(--mono);font-size:10px;color:var(--accent);background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer;}
+
+/* COMPARE CHART */
+.compare-cat-list{display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.compare-cat-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.15s;}
+.compare-cat-row.selected{border-color:var(--accent);background:var(--accent-bg);}
+.compare-cat-check{width:18px;height:18px;border-radius:4px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 0.15s;}
+.compare-cat-row.selected .compare-cat-check{background:var(--accent);border-color:var(--accent);}
+.compare-chart-wrap{background:var(--chart-bg);border-radius:12px;overflow:hidden;height:200px;margin-bottom:16px;}
+
+/* WEEKLY BALANCE */
+.period-toggle{display:flex;gap:0;margin:0 20px 12px;background:var(--bg3);border-radius:8px;padding:3px;flex-shrink:0;}
+.period-btn{flex:1;font-family:var(--mono);font-size:10px;font-weight:500;letter-spacing:0.06em;padding:6px;border-radius:6px;border:none;background:transparent;color:var(--text3);cursor:pointer;transition:all 0.15s;}
+.period-btn.active{background:var(--bg);color:var(--text);box-shadow:var(--shadow);}
+
 /* MODALS */
 .overlay{position:fixed;inset:0;background:#1a181488;backdrop-filter:blur(6px);z-index:200;display:flex;align-items:flex-end;opacity:0;pointer-events:none;transition:opacity 0.2s;}
 .overlay.open{opacity:1;pointer-events:all;}
@@ -242,6 +268,10 @@ select.form-input{cursor:pointer;}
       <button class="mode-btn active" id="modeExpense" onclick="setMode('expense')">Expenses</button>
       <button class="mode-btn" id="modeIncome" onclick="setMode('income')">Income</button>
     </div>
+    <div class="cur-switcher">
+      <span class="cur-switcher-label">VIEW IN</span>
+      <div id="curSwitcherPills" style="display:flex;gap:5px;overflow-x:auto;"></div>
+    </div>
     <div class="filter-scroll" id="timeFilters">
       <button class="pill" onclick="setTime('CW')">This Week</button>
       <button class="pill" onclick="setTime('LW')">Last 7d</button>
@@ -285,10 +315,18 @@ select.form-input{cursor:pointer;}
 
   <!-- BALANCE -->
   <div class="screen" id="screenBalance">
-    <div class="page-header" style="padding-bottom:12px;">
+    <div class="page-header" style="padding-bottom:8px;">
       <div class="page-header-row">
         <div class="page-title" id="balanceTitle">Balance</div>
       </div>
+    </div>
+    <div class="period-toggle">
+      <button class="period-btn active" id="balPeriodMonth" onclick="setBalPeriod('month')">This Month</button>
+      <button class="period-btn" id="balPeriodWeek" onclick="setBalPeriod('week')">This Week</button>
+    </div>
+    <div class="cur-switcher" style="padding:0 20px 8px;">
+      <span class="cur-switcher-label">VIEW IN</span>
+      <div id="balCurSwitcherPills" style="display:flex;gap:5px;overflow-x:auto;"></div>
     </div>
     <div class="scroll-content">
       <div class="bal-hero" id="balHero"></div>
@@ -315,7 +353,10 @@ select.form-input{cursor:pointer;}
   <!-- CATEGORIES -->
   <div class="screen" id="screenCategories">
     <div class="page-header" style="padding-bottom:4px;">
-      <div class="page-title">Categories</div>
+      <div class="page-header-row">
+        <div class="page-title">Categories</div>
+        <button class="submit-btn" style="width:auto;padding:8px 16px;font-size:12px;margin-top:4px" onclick="openCompareModal()">Compare Trends</button>
+      </div>
     </div>
     <div class="scroll-content">
       <div class="cat-section-label">Expense Categories
@@ -547,6 +588,105 @@ select.form-input{cursor:pointer;}
   </div>
 </div>
 
+<!-- EDIT TRANSACTION -->
+<div class="overlay" id="editTxOverlay" onclick="closeOverlay(event,'editTxOverlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="editTxTitle">Edit Transaction</div>
+    <div class="sheet-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Date</label><input class="form-input" type="date" id="editTxDate"></div>
+        <div class="form-group"><label class="form-label">Window</label><select class="form-input" id="editTxWindow" onchange="onEditWindowChange()"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Category</label><select class="form-input" id="editTxCat" onchange="populateEditSubcats()"></select></div>
+        <div class="form-group"><label class="form-label">Subcategory</label><select class="form-input" id="editTxSubcat"></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label" id="editTxAmt1Label">Amount</label><input class="form-input" type="number" inputmode="decimal" id="editTxAmt1" oninput="calcEditUSD()"></div>
+        <div class="form-group"><label class="form-label">≈ USD</label><input class="form-input" type="number" inputmode="decimal" id="editTxAmt2"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Payment Method</label><select class="form-input" id="editTxCard"></select></div>
+      <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="editTxDesc"></textarea></div>
+      <button class="submit-btn" onclick="saveEditTx()">Save Changes</button>
+      <button class="danger-btn" onclick="deleteEditTx()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT CARD -->
+<div class="overlay" id="editCardOverlay" onclick="closeOverlay(event,'editCardOverlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="editCardTitle">Edit Card</div>
+    <div class="sheet-body">
+      <div class="form-group"><label class="form-label">Name</label><input class="form-input" type="text" id="editCardName"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Currency</label><input class="form-input" type="text" id="editCardCurrency" maxlength="6" style="text-transform:uppercase"></div>
+        <div class="form-group"><label class="form-label">Type</label><select class="form-input" id="editCardType"><option value="debit">Debit</option><option value="credit">Credit</option></select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Icon / Image</label>
+        <div class="img-picker-wrap">
+          <div class="img-preview" id="editCardImgPreview" onclick="triggerEditCardImg()">💳</div>
+          <div class="img-picker-btns">
+            <button class="img-picker-btn" onclick="triggerEditCardImg()">Upload Image</button>
+            <button class="img-picker-btn" onclick="clearEditCardImg()">Use Emoji Instead</button>
+          </div>
+        </div>
+        <div class="emoji-picker" id="editCardEmojiPicker"></div>
+        <input type="file" id="editCardImgInput" accept="image/*" style="display:none" onchange="onEditCardImg(event)">
+      </div>
+      <button class="submit-btn" onclick="saveEditCard()">Save Changes</button>
+      <button class="danger-btn" onclick="deleteEditCard()">Delete Card</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT CASH WALLET -->
+<div class="overlay" id="editCashWalletOverlay" onclick="closeOverlay(event,'editCashWalletOverlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title" id="editCashWalletTitle">Edit Cash Wallet</div>
+    <div class="sheet-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Currency</label><input class="form-input" type="text" id="editCwCurrency" maxlength="6" style="text-transform:uppercase"></div>
+        <div class="form-group"><label class="form-label">Current Balance</label><input class="form-input" type="number" inputmode="decimal" id="editCwBalance"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Icon / Emoji</label>
+        <div class="emoji-picker" id="editCwEmojiPicker"></div>
+      </div>
+      <button class="submit-btn" onclick="saveEditCashWallet()">Save Changes</button>
+      <button class="danger-btn" onclick="deleteEditCashWallet()">Delete Wallet</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPARE TRENDS -->
+<div class="overlay" id="compareOverlay" onclick="closeOverlay(event,'compareOverlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Compare Category Trends</div>
+    <div class="sheet-body">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);margin-bottom:10px;">Select categories to compare (last 6 months)</div>
+      <div class="compare-cat-list" id="compareCatList"></div>
+      <button class="submit-btn" style="margin-top:12px" onclick="showCompareChart()">View Chart</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPARE CHART VIEW -->
+<div class="overlay" id="compareChartOverlay" onclick="closeOverlay(event,'compareChartOverlay')">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">Category Trends</div>
+    <div class="sheet-body">
+      <div class="compare-chart-wrap"><canvas id="compareChart"></canvas></div>
+      <div id="compareChartLegend" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;"></div>
+      <button class="submit-btn" onclick="closeOv('compareChartOverlay');openOv('compareOverlay')">← Change Selection</button>
+    </div>
+  </div>
+</div>
+
 <!-- EXPORT -->
 <div class="overlay" id="exportOverlay" onclick="closeOverlay(event,'exportOverlay')">
   <div class="sheet">
@@ -558,7 +698,14 @@ select.form-input{cursor:pointer;}
         <div class="form-group"><label class="form-label">From</label><input class="form-input" type="date" id="exportFrom"></div>
         <div class="form-group"><label class="form-label">To</label><input class="form-input" type="date" id="exportTo"></div>
       </div>
-      <div class="form-group"><label class="form-label">Window</label><select class="form-input" id="exportWindow"></select></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Window</label><select class="form-input" id="exportWindow"></select></div>
+        <div class="form-group"><label class="form-label">Type</label><select class="form-input" id="exportType"><option value="">All</option><option value="expense">Expenses</option><option value="income">Income</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Category</label><select class="form-input" id="exportCategory"></select></div>
+        <div class="form-group"><label class="form-label">Payment Method</label><select class="form-input" id="exportPayment"></select></div>
+      </div>
       <button class="submit-btn" onclick="doExport()">Download CSV</button>
     </div>
   </div>
@@ -597,19 +744,27 @@ const CAT_EMOJIS=['🍽','🚗','🎉','🛍','💊','✈️','📦','🏠','�
 const CARD_EMOJIS=['💳','💴','💶','💷','🏦','📱']
 
 // ── STATE ────────────────────────────────────────────────────────
-const STORE='spend_v4'
+const STORE='spend_v5'
 let D=load()
 let currentTime='CM',currentWindow='ALL',currentChartMode='bar',currentMode='expense'
 let addSubcatForCat=null,addSubcatType='expense',addCatType='expense'
 let selCatColor=CAT_COLORS[0],selCatEmoji=CAT_EMOJIS[0],selCardEmoji=CARD_EMOJIS[0]
 let searchQuery=''
 let darkMode=localStorage.getItem('darkMode')==='1'
+let displayCurrency='USD' // current display currency for overview
+let balDisplayCurrency='USD' // current display currency for balance
+let balPeriod='month' // 'month' or 'week'
+let editTxIdx=null,editTxIsIncome=false
+let editCardId=null,editCwId=null
+let editCardImgData=null,editCardUseImg=false
+let compareSelectedCats=new Set()
+let compareCatType='expense'
 
 function load(){
   try{
     const r=localStorage.getItem(STORE);if(r)return JSON.parse(r)
-    // migrate old data
-    const old=localStorage.getItem('spend_v3')
+    // migrate from v4
+    const old=localStorage.getItem('spend_v4')||localStorage.getItem('spend_v3')
     if(old){
       const d=JSON.parse(old)
       return{
@@ -618,8 +773,8 @@ function load(){
         transfers:d.transfers||[],
         categories:d.categories||JSON.parse(JSON.stringify(DEF_CATS)),
         incomeCategories:d.incomeCategories||JSON.parse(JSON.stringify(DEF_INCOME_CATS)),
-        cards:(d.cards||[]).map(c=>({...c,currency:c.currency||'USD',type:c.type||'credit'})),
-        cashWallets:d.cashWallets||JSON.parse(JSON.stringify(DEF_CASH)),
+        cards:(d.cards||[]).map(c=>({...c,currency:c.currency||'USD',type:c.type||'credit',img:c.img||null})),
+        cashWallets:(d.cashWallets||[]).map(w=>({...w,emoji:w.emoji||'💵'})),
         windows:d.windows||JSON.parse(JSON.stringify(DEF_WINDOWS)),
         fx:d.fx||{}
       }
@@ -669,12 +824,29 @@ function txMissingFX(tx){
   return getFX(cur,tx.date).missing
 }
 
-// Display currency based on current window filter
-function getDisplayCurrency(){
-  if(currentWindow==='ALL')return{sym:'$',code:'USD',toDisplay:t=>txToUSD(t)}
-  const win=getWin(currentWindow);if(!win)return{sym:'$',code:'USD',toDisplay:t=>txToUSD(t)}
-  const cur=win.currency,sym=symFor(cur)
-  return{sym,code:cur,toDisplay:t=>t.windowId===currentWindow?t.amt1:txToUSD(t)}
+// Display currency — now user-selectable
+function getDisplayCurrency(forBalance){
+  const cur=forBalance?balDisplayCurrency:displayCurrency
+  if(cur==='USD')return{sym:'$',code:'USD',toDisplay:t=>txToUSD(t)}
+  const sym=symFor(cur)
+  const{rate}=getFX(cur,todayISO())
+  return{sym,code:cur,toDisplay:t=>rate>0?txToUSD(t)/rate:txToUSD(t)}
+}
+
+// Get all available currencies (from windows + fx rates + cards + cash wallets)
+function getAvailableCurrencies(){
+  const curs=new Set(['USD'])
+  D.windows.forEach(w=>curs.add(w.currency))
+  D.cashWallets.forEach(w=>curs.add(w.currency))
+  D.cards.forEach(c=>curs.add(c.currency))
+  Object.keys(D.fx).forEach(k=>curs.add(k.split(':')[0]))
+  return [...curs].filter(Boolean)
+}
+
+function renderCurSwitcher(containerId,currentCur,onSelect){
+  const el=document.getElementById(containerId);if(!el)return
+  const curs=getAvailableCurrencies()
+  el.innerHTML=curs.map(cur=>`<button class="cur-pill${cur===currentCur?' active':''}" onclick="(${onSelect.toString()})('${cur}')">${cur}</button>`).join('')
 }
 
 // ── TIME FILTERS ─────────────────────────────────────────────────
@@ -747,7 +919,7 @@ function setMode(m){
 // ── OVERVIEW ─────────────────────────────────────────────────────
 function refreshOverview(){
   const txs=getFilteredTx()
-  const{sym,toDisplay}=getDisplayCurrency()
+  const{sym,toDisplay}=getDisplayCurrency(false)
   const total=txs.reduce((s,t)=>s+toDisplay(t),0)
   const missingFX=currentMode==='expense'?txs.filter(t=>txMissingFX(t)):[]
 
@@ -773,6 +945,7 @@ function refreshOverview(){
     warn.style.display='block'
   }else warn.style.display='none'
 
+  renderCurSwitcher('curSwitcherPills',displayCurrency,function(cur){displayCurrency=cur;refreshOverview()})
   renderWindowPills()
   if(currentChartMode==='bar')drawBar(txs)
   else drawDonut(txs)
@@ -992,8 +1165,9 @@ function openDetail(idx,isIncome){
     <div class="detail-row"><span class="detail-key">AMOUNT</span><span class="detail-val">${tx.amt1.toFixed(2)} ${win?win.currency:'EUR'}</span></div>
     <div class="detail-row"><span class="detail-key">USD EQUIV</span><span class="detail-val">${missing?'⚠ ':''} $${usd.toFixed(2)}${missing?' (1:1)':''}</span></div>
     <div class="detail-row"><span class="detail-key">WINDOW</span><span class="detail-val">${win?win.name:'—'}</span></div>
-    <div class="detail-row"><span class="detail-key">PAYMENT</span><span class="detail-val">${card?`${card.emoji} ${card.name}`:tx.cashWalletId?`💵 Cash ${getCashWallet(tx.cashWalletId)?.currency||''}`: '—'}</span></div>
+    <div class="detail-row"><span class="detail-key">PAYMENT</span><span class="detail-val">${card?`${renderCardImg(card,16)} ${card.name}`:tx.cashWalletId?`💵 Cash ${getCashWallet(tx.cashWalletId)?.currency||''}`: '—'}</span></div>
     ${tx.desc?`<div class="detail-row"><span class="detail-key">NOTE</span><span class="detail-val">${tx.desc}</span></div>`:''}
+    <button class="submit-btn" onclick="closeOv('txDetailOverlay');openEditTx(${idx},${isIncome})">Edit Transaction</button>
     <button class="danger-btn" onclick="deleteTx(${idx},${isIncome})">Delete</button>`
   openOv('txDetailOverlay')
 }
@@ -1002,6 +1176,75 @@ function deleteTx(idx,isIncome){
   if(isIncome)D.incomeTransactions.splice(idx,1)
   else D.transactions.splice(idx,1)
   save();closeOv('txDetailOverlay');refreshOverview()
+}
+
+// ── EDIT TRANSACTION ─────────────────────────────────────────────
+function openEditTx(idx,isIncome){
+  editTxIdx=idx;editTxIsIncome=isIncome
+  const src=isIncome?D.incomeTransactions:D.transactions
+  const tx=src[idx];if(!tx)return
+  document.getElementById('editTxTitle').textContent=isIncome?'Edit Income':'Edit Expense'
+  document.getElementById('editTxDate').value=tx.date
+  document.getElementById('editTxWindow').innerHTML=D.windows.map(w=>`<option value="${w.id}"${w.id===tx.windowId?' selected':''}>${w.name} (${w.currency})</option>`).join('')
+  // Categories
+  const cats=isIncome?D.incomeCategories:D.categories
+  document.getElementById('editTxCat').innerHTML=`<option value="">— select —</option>`+cats.map(c=>`<option value="${c.id}"${c.id===tx.catId?' selected':''}>${c.emoji} ${c.name}</option>`).join('')
+  // Subcats
+  const cat=isIncome?getIncomeCat(tx.catId):getCat(tx.catId)
+  document.getElementById('editTxSubcat').innerHTML=`<option value="">— none —</option>`+(cat&&cat.subs?cat.subs.map(s=>`<option value="${s}"${s===tx.subcat?' selected':''}>${s}</option>`).join(''):'')
+  // Amounts
+  const win=getWin(tx.windowId)
+  document.getElementById('editTxAmt1Label').textContent=`Amount (${win?win.currency:'EUR'})`
+  document.getElementById('editTxAmt1').value=tx.amt1
+  document.getElementById('editTxAmt2').value=tx.amtUSD!=null?tx.amtUSD:''
+  // Payment
+  const cashOpts=D.cashWallets.map(cw=>`<option value="cash:${cw.id}"${tx.cashWalletId===cw.id?' selected':''}>💵 Cash ${cw.currency}</option>`).join('')
+  const cardOpts=D.cards.map(c=>`<option value="card:${c.id}"${tx.cardId===c.id?' selected':''}>${c.emoji} ${c.name}</option>`).join('')
+  document.getElementById('editTxCard').innerHTML=`<option value="">— none —</option>`+cashOpts+cardOpts
+  document.getElementById('editTxDesc').value=tx.desc||''
+  openOv('editTxOverlay')
+}
+function onEditWindowChange(){
+  const win=getWin(document.getElementById('editTxWindow').value)
+  document.getElementById('editTxAmt1Label').textContent=`Amount (${win?win.currency:'EUR'})`
+  calcEditUSD()
+}
+function calcEditUSD(){
+  const win=getWin(document.getElementById('editTxWindow').value),cur=win?win.currency:'EUR'
+  const date=document.getElementById('editTxDate').value||todayISO()
+  const amt=parseFloat(document.getElementById('editTxAmt1').value)
+  const{rate}=getFX(cur,date)
+  if(!isNaN(amt)&&amt>0)document.getElementById('editTxAmt2').value=(amt*rate).toFixed(2)
+}
+function populateEditSubcats(){
+  const catId=document.getElementById('editTxCat').value
+  const cat=editTxIsIncome?getIncomeCat(catId):getCat(catId)
+  document.getElementById('editTxSubcat').innerHTML=`<option value="">— none —</option>`+(cat&&cat.subs?cat.subs.map(s=>`<option value="${s}">${s}</option>`).join(''):'')
+}
+function saveEditTx(){
+  const src=editTxIsIncome?D.incomeTransactions:D.transactions
+  const tx=src[editTxIdx];if(!tx)return
+  const date=document.getElementById('editTxDate').value
+  const winId=document.getElementById('editTxWindow').value
+  const catId=document.getElementById('editTxCat').value
+  const subcat=document.getElementById('editTxSubcat').value
+  const amt1=parseFloat(document.getElementById('editTxAmt1').value)
+  const amt2=parseFloat(document.getElementById('editTxAmt2').value)
+  const paymentVal=document.getElementById('editTxCard').value
+  const desc=document.getElementById('editTxDesc').value.trim()
+  if(!date||isNaN(amt1)||amt1<=0){alert('Fill in date and amount.');return}
+  let cardId=null,cashWalletId=null
+  if(paymentVal.startsWith('card:'))cardId=paymentVal.split(':')[1]
+  else if(paymentVal.startsWith('cash:'))cashWalletId=paymentVal.split(':')[1]
+  tx.date=date;tx.windowId=winId;tx.catId=catId||null;tx.subcat=subcat||null
+  tx.amt1=amt1;tx.amtUSD=isNaN(amt2)?null:amt2;tx.cardId=cardId;tx.cashWalletId=cashWalletId;tx.desc=desc||null
+  save();haptic();closeOv('editTxOverlay');refreshOverview()
+}
+function deleteEditTx(){
+  if(!confirm('Delete?'))return
+  const src=editTxIsIncome?D.incomeTransactions:D.transactions
+  src.splice(editTxIdx,1)
+  save();haptic('error');closeOv('editTxOverlay');refreshOverview()
 }
 
 // ── ADD TRANSACTION ───────────────────────────────────────────────
@@ -1062,14 +1305,27 @@ function saveTx(){
 
   if(currentMode==='income'){
     D.incomeTransactions.push(entry)
-    // Auto-update cash wallet balance on income
     if(cashWalletId){const cw=getCashWallet(cashWalletId);if(cw)cw.balance=(cw.balance||0)+amt1}
   }else{
     D.transactions.push(entry)
-    // Auto-deplete cash wallet on expense
     if(cashWalletId){const cw=getCashWallet(cashWalletId);if(cw)cw.balance=(cw.balance||0)-amt1}
   }
-  save();closeOv('addTxOverlay');refreshOverview()
+  save();closeOv('addTxOverlay');haptic();refreshOverview()
+}
+
+// ── HAPTIC ────────────────────────────────────────────────────────
+function haptic(style){
+  try{
+    if(window.navigator&&window.navigator.vibrate){window.navigator.vibrate(style==='light'?30:style==='error'?[50,30,50]:40)}
+  }catch(e){}
+}
+
+// ── CARD IMAGE RENDER ─────────────────────────────────────────────
+function renderCardImg(card,size){
+  if(!card)return ''
+  size=size||20
+  if(card.img){return `<img src="${card.img}" style="width:${size}px;height:${size}px;border-radius:4px;object-fit:cover;vertical-align:middle">`}
+  return card.emoji||'💳'
 }
 
 // ── TRANSFER ─────────────────────────────────────────────────────
@@ -1101,38 +1357,122 @@ function saveTransfer(){
   if(toVal.startsWith('cash:')){const cw=getCashWallet(toVal.split(':')[1]);if(cw)cw.balance=(cw.balance||0)+amtTo}
 
   D.transfers.push({id:uid(),date,from:fromVal,to:toVal,amt,amtTo,desc:desc||null})
-  save();closeOv('addTransferOverlay');renderBalance()
+  save();haptic();closeOv('addTransferOverlay');renderBalance()
   alert('Transfer saved.')
+}
+
+// ── EDIT CARD ────────────────────────────────────────────────────
+function openEditCard(id){
+  editCardId=id;const card=getCard(id);if(!card)return
+  editCardImgData=card.img||null;editCardUseImg=!!card.img
+  document.getElementById('editCardTitle').textContent=`Edit ${card.name}`
+  document.getElementById('editCardName').value=card.name
+  document.getElementById('editCardCurrency').value=card.currency||'USD'
+  document.getElementById('editCardType').value=card.type||'credit'
+  // Image preview
+  const preview=document.getElementById('editCardImgPreview')
+  if(card.img){preview.innerHTML=`<img src="${card.img}">`}else{preview.textContent=card.emoji||'💳'}
+  // Emoji picker
+  renderEmojiPick('editCardEmojiPicker',CARD_EMOJIS,()=>card.emoji||CARD_EMOJIS[0],v=>{card.emoji=v;const p=document.getElementById('editCardImgPreview');if(!editCardUseImg)p.textContent=v})
+  openOv('editCardOverlay')
+}
+function triggerEditCardImg(){document.getElementById('editCardImgInput').click()}
+function onEditCardImg(e){
+  const file=e.target.files[0];if(!file)return
+  const reader=new FileReader()
+  reader.onload=ev=>{
+    editCardImgData=ev.target.result;editCardUseImg=true
+    const p=document.getElementById('editCardImgPreview');p.innerHTML=`<img src="${editCardImgData}">`
+  }
+  reader.readAsDataURL(file)
+}
+function clearEditCardImg(){editCardUseImg=false;editCardImgData=null;const card=getCard(editCardId);const p=document.getElementById('editCardImgPreview');if(card)p.textContent=card.emoji||'💳'}
+function saveEditCard(){
+  const card=getCard(editCardId);if(!card)return
+  card.name=document.getElementById('editCardName').value.trim()||card.name
+  card.currency=document.getElementById('editCardCurrency').value.trim().toUpperCase()||card.currency
+  card.type=document.getElementById('editCardType').value
+  card.img=editCardUseImg?editCardImgData:null
+  save();haptic();closeOv('editCardOverlay');renderSettings()
+}
+function deleteEditCard(){if(!confirm('Delete card?'))return;D.cards=D.cards.filter(c=>c.id!==editCardId);save();haptic('error');closeOv('editCardOverlay');renderSettings()}
+
+// ── EDIT CASH WALLET ──────────────────────────────────────────────
+function openEditCashWallet(id){
+  editCwId=id;const cw=getCashWallet(id);if(!cw)return
+  document.getElementById('editCashWalletTitle').textContent=`Edit Cash ${cw.currency}`
+  document.getElementById('editCwCurrency').value=cw.currency
+  document.getElementById('editCwBalance').value=cw.balance||0
+  renderEmojiPick('editCwEmojiPicker',['💵','💴','💶','💷','💰','🪙'],()=>cw.emoji||'💵',v=>cw.emoji=v)
+  openOv('editCashWalletOverlay')
+}
+function saveEditCashWallet(){
+  const cw=getCashWallet(editCwId);if(!cw)return
+  const newCur=document.getElementById('editCwCurrency').value.trim().toUpperCase()
+  if(newCur&&newCur!==cw.currency&&D.cashWallets.find(w=>w.id!==editCwId&&w.currency===newCur)){alert(`Cash wallet for ${newCur} already exists.`);return}
+  if(newCur)cw.currency=newCur
+  const newBal=parseFloat(document.getElementById('editCwBalance').value)
+  if(!isNaN(newBal))cw.balance=newBal
+  save();haptic();closeOv('editCashWalletOverlay');renderSettings()
+}
+function deleteEditCashWallet(){if(!confirm('Delete wallet?'))return;D.cashWallets=D.cashWallets.filter(w=>w.id!==editCwId);save();haptic('error');closeOv('editCashWalletOverlay');renderSettings()}
+
+// ── BALANCE PERIOD ────────────────────────────────────────────────
+function setBalPeriod(p){
+  balPeriod=p
+  document.getElementById('balPeriodMonth').classList.toggle('active',p==='month')
+  document.getElementById('balPeriodWeek').classList.toggle('active',p==='week')
+  renderBalance()
 }
 
 // ── BALANCE SCREEN ────────────────────────────────────────────────
 function renderBalance(){
   const now=new Date()
   const mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-  const curMo=curMonthKey(),prevMo=prevMonthKey()
-  const curExpTxs=getTxForMonth(curMo,'expense')
-  const curIncTxs=getTxForMonth(curMo,'income')
-  const prevExpTxs=getTxForMonth(prevMo,'expense')
-  const curExp=curExpTxs.reduce((s,t)=>s+txToUSD(t),0)
-  const curInc=curIncTxs.reduce((s,t)=>s+txToUSD(t),0)
-  const prevExp=prevExpTxs.reduce((s,t)=>s+txToUSD(t),0)
+  const{sym:bSym,toDisplay:bToDisplay}=getDisplayCurrency(true)
+
+  // Determine period
+  let periodLabel,expTxs,incTxs,prevExpTxs
+  if(balPeriod==='week'){
+    const day=now.getDay(),sun=new Date(now);sun.setDate(now.getDate()-day)
+    const sunStr=`${sun.getFullYear()}-${S(sun.getMonth()+1)}-${S(sun.getDate())}`
+    const todayStr=todayISO()
+    expTxs=D.transactions.filter(t=>t.date>=sunStr&&t.date<=todayStr)
+    incTxs=D.incomeTransactions.filter(t=>t.date>=sunStr&&t.date<=todayStr)
+    const prevSun=new Date(sun);prevSun.setDate(sun.getDate()-7)
+    const prevSunStr=`${prevSun.getFullYear()}-${S(prevSun.getMonth()+1)}-${S(prevSun.getDate())}`
+    prevExpTxs=D.transactions.filter(t=>t.date>=prevSunStr&&t.date<sunStr)
+    periodLabel=`Week of ${sun.getDate()} ${mo[sun.getMonth()]}`
+  }else{
+    const curMo=curMonthKey(),prevMo=prevMonthKey()
+    expTxs=getTxForMonth(curMo,'expense')
+    incTxs=getTxForMonth(curMo,'income')
+    prevExpTxs=getTxForMonth(prevMo,'expense')
+    periodLabel=`${mo[now.getMonth()]} ${now.getFullYear()}`
+  }
+
+  const curExp=expTxs.reduce((s,t)=>s+bToDisplay(t),0)
+  const curInc=incTxs.reduce((s,t)=>s+bToDisplay(t),0)
+  const prevExp=prevExpTxs.reduce((s,t)=>s+bToDisplay(t),0)
   const net=curInc-curExp
   const netColor=net>=0?'#34d470':'#ef4444'
 
-  document.getElementById('balanceTitle').textContent=`${mo[now.getMonth()]} Balance`
+  document.getElementById('balanceTitle').textContent='Balance'
+  renderCurSwitcher('balCurSwitcherPills',balDisplayCurrency,function(cur){balDisplayCurrency=cur;renderBalance()})
   document.getElementById('balHero').innerHTML=`
-    <div class="bal-month-label">${mo[now.getMonth()].toUpperCase()} ${now.getFullYear()} · NET</div>
-    <div class="bal-total" style="color:${netColor}">${net>=0?'+':''}$${net.toFixed(2)}</div>
-    <div class="bal-sub" style="color:#6b6458">+$${curInc.toFixed(2)} income — $${curExp.toFixed(2)} expenses</div>`
+    <div class="bal-month-label">${periodLabel.toUpperCase()} · NET</div>
+    <div class="bal-total" style="color:${netColor}">${net>=0?'+':''}${bSym}${Math.abs(net).toFixed(2)}</div>
+    <div class="bal-sub" style="color:#6b6458">+${bSym}${curInc.toFixed(2)} income — ${bSym}${curExp.toFixed(2)} expenses</div>`
 
-  const days=[...new Set(curExpTxs.map(t=>t.date))].length||1
+  const days=[...new Set(expTxs.map(t=>t.date))].length||1
   const prevDelta=prevExp>0?curExp-prevExp:null
   document.getElementById('balGrid').innerHTML=`
-    <div class="bal-card"><div class="bal-card-lbl">Expenses</div><div class="bal-card-val" style="color:var(--red)">$${curExp.toFixed(2)}</div><div class="bal-card-sub">${curExpTxs.length} transactions</div></div>
-    <div class="bal-card"><div class="bal-card-lbl">Income</div><div class="bal-card-val" style="color:var(--accent)">+$${curInc.toFixed(2)}</div><div class="bal-card-sub">${curIncTxs.length} entries</div></div>
-    <div class="bal-card"><div class="bal-card-lbl">Daily Avg</div><div class="bal-card-val">$${(curExp/days).toFixed(2)}</div><div class="bal-card-sub">${days} days</div></div>
-    <div class="bal-card"><div class="bal-card-lbl">vs Last Month</div><div class="bal-card-val" style="color:${prevDelta!=null?(prevDelta>=0?'var(--red)':'var(--accent)'):'var(--text3)'}">${prevDelta!=null?(prevDelta>=0?'+':'')+prevDelta.toFixed(2):'—'}</div><div class="bal-card-sub">${prevExp>0?'$'+prevExp.toFixed(2)+' last mo':'no prev data'}</div></div>`
+    <div class="bal-card"><div class="bal-card-lbl">Expenses</div><div class="bal-card-val" style="color:var(--red)">${bSym}${curExp.toFixed(2)}</div><div class="bal-card-sub">${expTxs.length} transactions</div></div>
+    <div class="bal-card"><div class="bal-card-lbl">Income</div><div class="bal-card-val" style="color:var(--accent)">+${bSym}${curInc.toFixed(2)}</div><div class="bal-card-sub">${incTxs.length} entries</div></div>
+    <div class="bal-card"><div class="bal-card-lbl">${balPeriod==='week'?'Daily Avg':'Daily Avg'}</div><div class="bal-card-val">${bSym}${(curExp/days).toFixed(2)}</div><div class="bal-card-sub">${days} days</div></div>
+    <div class="bal-card"><div class="bal-card-lbl">vs ${balPeriod==='week'?'Last Week':'Last Month'}</div><div class="bal-card-val" style="color:${prevDelta!=null?(prevDelta>=0?'var(--red)':'var(--accent)'):'var(--text3)'}">${prevDelta!=null?(prevDelta>=0?'+':'')+prevDelta.toFixed(2):'—'}</div><div class="bal-card-sub">${prevExp>0?bSym+prevExp.toFixed(2)+' prev':'no prev data'}</div></div>`
 
+  const curExpTxs=expTxs, curIncTxs=incTxs
   // Cash wallets
   const cwList=document.getElementById('cashWalletList')
   if(D.cashWallets.length===0){
@@ -1288,23 +1628,21 @@ function renderSettings(){
 
   // Cash wallets
   document.getElementById('cashWalletSettings').innerHTML=D.cashWallets.length===0?'':D.cashWallets.map(cw=>`
-    <div class="settings-row" style="margin-bottom:6px">
-      <div class="s-icon" style="background:var(--bg3)">💵</div>
+    <div class="settings-row" style="margin-bottom:6px;cursor:pointer" onclick="openEditCashWallet('${cw.id}')">
+      <div class="s-icon" style="background:var(--bg3)">${cw.emoji||'💵'}</div>
       <div class="s-info"><div class="s-name">Cash ${cw.currency}</div><div class="s-sub">${symFor(cw.currency)}${(cw.balance||0).toFixed(2)} current balance</div></div>
-      <button class="del-btn" onclick="delCashWallet('${cw.id}')">×</button>
     </div>`).join('')
 
   // Cards
   document.getElementById('cardsList').innerHTML=D.cards.map(c=>`
-    <div class="settings-row">
-      <div class="s-icon" style="background:var(--bg3)">${c.emoji}</div>
+    <div class="settings-row" style="cursor:pointer" onclick="openEditCard('${c.id}')">
+      <div class="s-icon" style="background:var(--bg3);overflow:hidden">${c.img?`<img src="${c.img}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`:c.emoji||'💳'}</div>
       <div class="s-info">
         <div class="s-name">${c.name} <span style="font-family:var(--mono);font-size:10px;color:var(--text3)">${c.currency}</span></div>
         <div class="s-sub">
-          <button class="type-badge" style="background:${c.type==='credit'?'var(--red-bg)':'var(--accent-bg)'};color:${c.type==='credit'?'var(--red)':'var(--accent)'}" onclick="toggleCardType('${c.id}')">${c.type==='credit'?'Credit':'Debit'}</button>
+          <span class="type-badge" style="background:${c.type==='credit'?'var(--red-bg)':'var(--accent-bg)'};color:${c.type==='credit'?'var(--red)':'var(--accent)'}">${c.type==='credit'?'Credit':'Debit'}</span>
         </div>
       </div>
-      <button class="del-btn" onclick="delCard('${c.id}')">×</button>
     </div>`).join('')
 }
 
@@ -1333,8 +1671,8 @@ function saveCard(){
   const currency=document.getElementById('cardCurrency').value.trim().toUpperCase()||'USD'
   const type=document.getElementById('cardType').value
   if(!name){alert('Enter a name.');return}
-  D.cards.push({id:uid(),name,emoji:selCardEmoji,type,currency})
-  save();closeOv('addCardOverlay');renderSettings()
+  D.cards.push({id:uid(),name,emoji:selCardEmoji,type,currency,img:null})
+  save();haptic();closeOv('addCardOverlay');renderSettings()
 }
 function delCard(id){if(!confirm('Delete card?'))return;D.cards=D.cards.filter(c=>c.id!==id);save();renderSettings()}
 function toggleCardType(id){const card=getCard(id);if(!card)return;card.type=card.type==='credit'?'debit':'credit';save();renderSettings()}
@@ -1349,22 +1687,47 @@ function clearAllData(){
 function openExportModal(){
   document.getElementById('exportFrom').value=''
   document.getElementById('exportTo').value=''
+  document.getElementById('exportType').value=''
   document.getElementById('exportWindow').innerHTML=`<option value="">All Windows</option>`+D.windows.map(w=>`<option value="${w.id}">${w.name}</option>`).join('')
+  const allCats=[...D.categories,...D.incomeCategories]
+  document.getElementById('exportCategory').innerHTML=`<option value="">All Categories</option>`+allCats.map(c=>`<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('')
+  const cashOpts=D.cashWallets.map(cw=>`<option value="cash:${cw.id}">💵 Cash ${cw.currency}</option>`).join('')
+  const cardOpts=D.cards.map(c=>`<option value="card:${c.id}">${c.emoji} ${c.name}</option>`).join('')
+  document.getElementById('exportPayment').innerHTML=`<option value="">All Payment Methods</option>`+cashOpts+cardOpts
   openOv('exportOverlay')
 }
 function doExport(){
-  let txs=[...D.transactions,...D.incomeTransactions].sort((a,b)=>a.date.localeCompare(b.date))
-  const from=document.getElementById('exportFrom').value,to=document.getElementById('exportTo').value,winId=document.getElementById('exportWindow').value
-  if(from)txs=txs.filter(t=>t.date>=from)
-  if(to)txs=txs.filter(t=>t.date<=to)
-  if(winId)txs=txs.filter(t=>t.windowId===winId)
+  let expTxs=[...D.transactions],incTxs=[...D.incomeTransactions]
+  const from=document.getElementById('exportFrom').value
+  const to=document.getElementById('exportTo').value
+  const winId=document.getElementById('exportWindow').value
+  const typeFilter=document.getElementById('exportType').value
+  const catFilter=document.getElementById('exportCategory').value
+  const payFilter=document.getElementById('exportPayment').value
+
+  if(from){expTxs=expTxs.filter(t=>t.date>=from);incTxs=incTxs.filter(t=>t.date>=from)}
+  if(to){expTxs=expTxs.filter(t=>t.date<=to);incTxs=incTxs.filter(t=>t.date<=to)}
+  if(winId){expTxs=expTxs.filter(t=>t.windowId===winId);incTxs=incTxs.filter(t=>t.windowId===winId)}
+  if(catFilter){expTxs=expTxs.filter(t=>t.catId===catFilter);incTxs=incTxs.filter(t=>t.catId===catFilter)}
+  if(payFilter){
+    const isCard=payFilter.startsWith('card:'),isCash=payFilter.startsWith('cash:')
+    const pid=payFilter.split(':')[1]
+    const filterFn=t=>(isCard&&t.cardId===pid)||(isCash&&t.cashWalletId===pid)
+    expTxs=expTxs.filter(filterFn);incTxs=incTxs.filter(filterFn)
+  }
+
+  let txs=[]
+  if(typeFilter==='expense'||typeFilter==='')txs=[...txs,...expTxs.map(t=>({...t,_type:'expense'}))]
+  if(typeFilter==='income'||typeFilter==='')txs=[...txs,...incTxs.map(t=>({...t,_type:'income'}))]
+  txs=txs.sort((a,b)=>a.date.localeCompare(b.date))
   if(txs.length===0){alert('No transactions match this filter.');return}
   const rows=[['Date','Type','Window','Category','Subcategory','Amount (local)','Currency','Amount (USD)','FX Used','Card','Description']]
   txs.forEach(tx=>{
-    const isInc=D.incomeTransactions.includes(tx)
+    const isInc=tx._type==='income'
     const win=getWin(tx.windowId),cat=getAnyCat(tx.catId,isInc?'income':'expense'),card=getCard(tx.cardId)
     const cur=win?win.currency:'EUR',{rate,missing}=getFX(cur,tx.date)
-    rows.push([tx.date,isInc?'income':'expense',win?win.name:'',cat?cat.name:'',tx.subcat||'',tx.amt1.toFixed(2),cur,txToUSD(tx).toFixed(2),missing?'1:1':rate.toFixed(4),card?card.name:'',tx.desc||''])
+    const cw=tx.cashWalletId?getCashWallet(tx.cashWalletId):null
+    rows.push([tx.date,isInc?'income':'expense',win?win.name:'',cat?cat.name:'',tx.subcat||'',tx.amt1.toFixed(2),cur,txToUSD(tx).toFixed(2),missing?'1:1':rate.toFixed(4),card?card.name:cw?`Cash ${cw.currency}`:'',tx.desc||''])
   })
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
   const blob=new Blob([csv],{type:'text/csv'}),url=URL.createObjectURL(blob),a=document.createElement('a')
@@ -1426,6 +1789,110 @@ function parseCSVRow(row){
   return cols
 }
 
+// ── COMPARE TRENDS ───────────────────────────────────────────────
+function openCompareModal(){
+  compareSelectedCats=new Set()
+  // Show expense cats by default, with a toggle
+  compareCatType='expense'
+  renderCompareCatList()
+  openOv('compareOverlay')
+}
+
+function renderCompareCatList(){
+  const cats=compareCatType==='income'?D.incomeCategories:D.categories
+  const list=document.getElementById('compareCatList')
+  list.innerHTML=`
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      <button class="cur-pill${compareCatType==='expense'?' active':''}" onclick="compareCatType='expense';renderCompareCatList()">Expenses</button>
+      <button class="cur-pill${compareCatType==='income'?' active':''}" onclick="compareCatType='income';renderCompareCatList()">Income</button>
+    </div>`+cats.map(cat=>`
+    <div class="compare-cat-row${compareSelectedCats.has(cat.id)?' selected':''}" onclick="toggleCompareCat('${cat.id}')">
+      <div class="compare-cat-check">${compareSelectedCats.has(cat.id)?'<svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}</div>
+      <div style="font-size:18px">${cat.emoji}</div>
+      <div style="font-family:var(--sans);font-size:13px;font-weight:600;color:var(--text);flex:1">${cat.name}</div>
+      <div style="width:10px;height:10px;border-radius:50%;background:${cat.color};flex-shrink:0"></div>
+    </div>`).join('')
+}
+
+function toggleCompareCat(id){
+  if(compareSelectedCats.has(id))compareSelectedCats.delete(id)
+  else compareSelectedCats.add(id)
+  renderCompareCatList()
+}
+
+function showCompareChart(){
+  if(compareSelectedCats.size===0){alert('Select at least one category.');return}
+  closeOv('compareOverlay')
+
+  const cats=compareCatType==='income'?D.incomeCategories:D.categories
+  const src=compareCatType==='income'?D.incomeTransactions:D.transactions
+  const selectedCats=cats.filter(c=>compareSelectedCats.has(c.id))
+
+  // Build 6-month data
+  const now=new Date()
+  const months=[]
+  for(let i=5;i>=0;i--){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1)
+    months.push({key:`${d.getFullYear()}-${S(d.getMonth()+1)}`,label:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]})
+  }
+
+  const datasets=selectedCats.map(cat=>{
+    const data=months.map(m=>{
+      return src.filter(t=>t.date.startsWith(m.key)&&t.catId===cat.id).reduce((s,t)=>s+txToUSD(t),0)
+    })
+    return{cat,data}
+  })
+
+  // Draw on canvas
+  openOv('compareChartOverlay')
+  setTimeout(()=>{
+    const canvas=document.getElementById('compareChart')
+    const wrap=canvas.parentElement,dpr=window.devicePixelRatio||1
+    const W=wrap.clientWidth,H=wrap.clientHeight
+    canvas.width=W*dpr;canvas.height=H*dpr;canvas.style.width=W+'px';canvas.style.height=H+'px'
+    const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H)
+
+    const pL=44,pR=16,pT=20,pB=28,cW=W-pL-pR,cH=H-pT-pB
+    const allVals=datasets.flatMap(d=>d.data)
+    const maxVal=Math.max(...allVals,1)
+
+    // Grid
+    for(let i=0;i<=4;i++){
+      const y=pT+(cH/4)*i,val=maxVal-(maxVal/4)*i
+      ctx.strokeStyle='#2e2a2460';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pL,y);ctx.lineTo(W-pR,y);ctx.stroke()
+      ctx.fillStyle='#6b6458';ctx.font='400 8px JetBrains Mono';ctx.textAlign='right'
+      ctx.fillText('$'+fmtAmt(val),pL-4,y+3)
+    }
+
+    // X labels
+    const step=cW/(months.length-1)
+    ctx.fillStyle='#6b6458';ctx.font='400 9px JetBrains Mono';ctx.textAlign='center'
+    months.forEach((m,i)=>ctx.fillText(m.label,pL+i*step,H-pB+12))
+
+    // Lines
+    datasets.forEach(({cat,data})=>{
+      ctx.beginPath();ctx.strokeStyle=cat.color;ctx.lineWidth=2;ctx.lineJoin='round';ctx.lineCap='round'
+      data.forEach((val,i)=>{
+        const x=pL+i*step,y=pT+cH-((val/maxVal)*cH)
+        if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)
+      })
+      ctx.stroke()
+      // Dots
+      data.forEach((val,i)=>{
+        const x=pL+i*step,y=pT+cH-((val/maxVal)*cH)
+        ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);ctx.fillStyle=cat.color;ctx.fill()
+      })
+    })
+
+    // Legend
+    document.getElementById('compareChartLegend').innerHTML=selectedCats.map(cat=>`
+      <div style="display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10px;color:var(--text2)">
+        <div style="width:12px;height:3px;border-radius:2px;background:${cat.color}"></div>
+        ${cat.emoji} ${cat.name}
+      </div>`).join('')
+  },100)
+}
+
 // ── OVERLAYS ─────────────────────────────────────────────────────
 function openOv(id){document.getElementById(id).classList.add('open')}
 function closeOv(id){document.getElementById(id).classList.remove('open')}
@@ -1434,6 +1901,8 @@ window.addEventListener('resize',()=>{if(document.getElementById('screenOverview
 
 // ── INIT ─────────────────────────────────────────────────────────
 applyDark()
+// Set initial display currency from first available window
+if(D.windows.length>0)displayCurrency='USD'
 refreshOverview()
 </script>
 </body>
