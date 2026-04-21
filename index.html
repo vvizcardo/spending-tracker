@@ -1784,8 +1784,22 @@ function importCSV(event){
   reader.readAsText(file)
 }
 function parseCSVRow(row){
-  const cols=[],re=/("(?:[^"]|"")*"|[^,]*)/g;let m
-  while((m=re.exec(row))!==null){let v=m[1];if(v.startsWith('"')&&v.endsWith('"'))v=v.slice(1,-1).replace(/""/g,'"');cols.push(v);if(re.lastIndex===row.length)break}
+  const cols=[]
+  let i=0,cur=''
+  while(i<=row.length){
+    if(i===row.length){cols.push(cur.trim());break}
+    const ch=row[i]
+    if(ch==='"'){
+      i++;let quoted=''
+      while(i<row.length){
+        if(row[i]==='"'&&row[i+1]==='"'){quoted+='"';i+=2}
+        else if(row[i]==='"'){i++;break}
+        else{quoted+=row[i];i++}
+      }
+      cur=quoted
+    }else if(ch===','){cols.push(cur.trim());cur='';i++}
+    else{cur+=ch;i++}
+  }
   return cols
 }
 
