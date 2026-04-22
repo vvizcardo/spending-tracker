@@ -8,6 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Spend">
 <title>Spend Tracker</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{
   --bg:#f5f0e8;--bg2:#ede8df;--bg3:#e4ddd2;--bg4:#d8d0c4;
@@ -244,7 +245,28 @@ select.form-input{cursor:pointer;}
 </style>
 </head>
 <body>
-<div id="app">
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:1000;flex-direction:column;align-items:center;justify-content:center;padding:40px 32px;">
+  <div style="width:100%;max-width:360px;">
+    <div style="font-family:var(--sans);font-size:28px;font-weight:800;color:var(--text);margin-bottom:6px;">Spend Tracker</div>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--text3);margin-bottom:40px;letter-spacing:0.04em;">Your personal finance app</div>
+    <div id="loginForm">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">Email</div>
+      <input id="loginEmail" type="email" inputmode="email" placeholder="your@email.com" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:13px 14px;font-family:var(--mono);font-size:15px;color:var(--text);outline:none;margin-bottom:12px;-webkit-appearance:none;">
+      <button onclick="sendMagicLink()" style="width:100%;padding:14px;background:var(--accent);border:none;border-radius:10px;font-family:var(--sans);font-size:15px;font-weight:700;color:#fff;cursor:pointer;">Send Magic Link</button>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text3);text-align:center;margin-top:12px;line-height:1.6;">We'll send a link to your email.<br>Tap it to sign in — no password needed.</div>
+    </div>
+    <div id="loginSent" style="display:none;text-align:center;">
+      <div style="font-size:40px;margin-bottom:16px;">📬</div>
+      <div style="font-family:var(--sans);font-size:17px;font-weight:700;color:var(--text);margin-bottom:8px;">Check your email</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text3);line-height:1.7;" id="loginSentMsg">We sent a magic link to your email.<br>Tap it to sign in.</div>
+      <button onclick="document.getElementById('loginSent').style.display='none';document.getElementById('loginForm').style.display='block'" style="margin-top:20px;font-family:var(--mono);font-size:11px;color:var(--accent);background:none;border:none;cursor:pointer;">← Try again</button>
+    </div>
+    <div id="loginError" style="display:none;font-family:var(--mono);font-size:11px;color:var(--red);text-align:center;margin-top:10px;"></div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
 
   <!-- OVERVIEW -->
   <div class="screen active" id="screenOverview">
@@ -415,6 +437,18 @@ select.form-input{cursor:pointer;}
           <div class="settings-row" style="cursor:pointer" onclick="clearAllData()">
             <div class="s-icon" style="background:var(--red-bg)">🗑</div>
             <div class="s-info"><div class="s-name" style="color:var(--red)">Clear All Data</div><div class="s-sub">Cannot be undone</div></div>
+          </div>
+        </div>
+
+        <div class="settings-label">Account</div>
+        <div class="settings-list">
+          <div class="settings-row" id="accountRow">
+            <div class="s-icon" style="background:var(--bg3)">👤</div>
+            <div class="s-info"><div class="s-name" id="accountEmail">Loading...</div><div class="s-sub">Signed in</div></div>
+          </div>
+          <div class="settings-row" style="cursor:pointer" onclick="signOut()">
+            <div class="s-icon" style="background:var(--red-bg)">🚪</div>
+            <div class="s-info"><div class="s-name" style="color:var(--red)">Sign Out</div><div class="s-sub">You'll need to sign in again</div></div>
           </div>
         </div>
       </div>
@@ -710,6 +744,7 @@ select.form-input{cursor:pointer;}
     </div>
   </div>
 </div>
+</div><!-- end #app -->
 
 <script>
 // ── CONSTANTS ────────────────────────────────────────────────────
@@ -744,27 +779,33 @@ const CAT_EMOJIS=['🍽','🚗','🎉','🛍','💊','✈️','📦','🏠','�
 const CARD_EMOJIS=['💳','💴','💶','💷','🏦','📱']
 
 // ── STATE ────────────────────────────────────────────────────────
-const STORE='spend_v5'
-let D=load()
+// ── SUPABASE ─────────────────────────────────────────────────────
+const SUPA_URL='https://bcgdimimnjaimyzdombn.supabase.co'
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjZ2RpbWltbmphaW15emRvbWJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4NTU3NzYsImV4cCI6MjA5MjQzMTc3Nn0.fOnOVlJsb3p5-JeGTk3MfE0h4vef2KJ5tURhuroc6ig'
+const supa=supabase.createClient(SUPA_URL,SUPA_KEY)
+let supaUser=null
+let syncTimeout=null
+
+// ── STATE ─────────────────────────────────────────────────────────
+let D=defaultData()
 let currentTime='CM',currentWindow='ALL',currentChartMode='bar',currentMode='expense'
 let addSubcatForCat=null,addSubcatType='expense',addCatType='expense'
 let selCatColor=CAT_COLORS[0],selCatEmoji=CAT_EMOJIS[0],selCardEmoji=CARD_EMOJIS[0]
 let searchQuery=''
 let darkMode=localStorage.getItem('darkMode')==='1'
-let displayCurrency='USD' // current display currency for overview
-let balDisplayCurrency='USD' // current display currency for balance
-let balPeriod='month' // 'month' or 'week'
+let displayCurrency='USD'
+let balDisplayCurrency='USD'
+let balPeriod='month'
 let editTxIdx=null,editTxIsIncome=false
 let editCardId=null,editCwId=null
 let editCardImgData=null,editCardUseImg=false
 let compareSelectedCats=new Set()
 let compareCatType='expense'
 
-function load(){
+function defaultData(){
+  // Try migrating from old localStorage versions first
   try{
-    const r=localStorage.getItem(STORE);if(r)return JSON.parse(r)
-    // migrate from v4
-    const old=localStorage.getItem('spend_v4')||localStorage.getItem('spend_v3')
+    const old=localStorage.getItem('spend_v5')||localStorage.getItem('spend_v4')||localStorage.getItem('spend_v3')
     if(old){
       const d=JSON.parse(old)
       return{
@@ -779,10 +820,55 @@ function load(){
         fx:d.fx||{}
       }
     }
-  }catch(e){console.error(e)}
+  }catch(e){}
   return{transactions:[],incomeTransactions:[],transfers:[],categories:JSON.parse(JSON.stringify(DEF_CATS)),incomeCategories:JSON.parse(JSON.stringify(DEF_INCOME_CATS)),cards:JSON.parse(JSON.stringify(DEF_CARDS)),cashWallets:JSON.parse(JSON.stringify(DEF_CASH)),windows:JSON.parse(JSON.stringify(DEF_WINDOWS)),fx:{}}
 }
-function save(){localStorage.setItem(STORE,JSON.stringify(D))}
+
+// Cloud save — debounced 800ms so rapid changes don't spam the DB
+function save(){
+  // Also keep local copy as fallback
+  localStorage.setItem('spend_v5',JSON.stringify(D))
+  clearTimeout(syncTimeout)
+  syncTimeout=setTimeout(async()=>{
+    if(!supaUser)return
+    try{
+      await supa.from('user_data').upsert({id:supaUser.id,data:D,updated_at:new Date().toISOString()})
+    }catch(e){console.error('Sync error:',e)}
+  },800)
+}
+
+// Load from cloud
+async function loadFromCloud(){
+  if(!supaUser)return
+  try{
+    const{data,error}=await supa.from('user_data').select('data').eq('id',supaUser.id).single()
+    if(error&&error.code!=='PGRST116')throw error
+    if(data&&data.data){
+      D=data.data
+      // Ensure all required arrays exist (in case of old data)
+      D.transactions=D.transactions||[]
+      D.incomeTransactions=D.incomeTransactions||[]
+      D.transfers=D.transfers||[]
+      D.categories=D.categories||JSON.parse(JSON.stringify(DEF_CATS))
+      D.incomeCategories=D.incomeCategories||JSON.parse(JSON.stringify(DEF_INCOME_CATS))
+      D.cards=D.cards||JSON.parse(JSON.stringify(DEF_CARDS))
+      D.cashWallets=D.cashWallets||JSON.parse(JSON.stringify(DEF_CASH))
+      D.windows=D.windows||JSON.parse(JSON.stringify(DEF_WINDOWS))
+      D.fx=D.fx||{}
+    }
+    // If no cloud data yet, check if we have local data to migrate
+    else{
+      D=defaultData()
+      // Auto-save local data to cloud on first login
+      if(D.transactions.length>0||D.incomeTransactions.length>0){
+        save()
+      }
+    }
+  }catch(e){
+    console.error('Load error:',e)
+    D=defaultData()
+  }
+}
 
 // ── HELPERS ──────────────────────────────────────────────────────
 function uid(){return 'x'+Math.random().toString(36).substr(2,9)}
@@ -1913,11 +1999,83 @@ function closeOv(id){document.getElementById(id).classList.remove('open')}
 function closeOverlay(e,id){if(e.target.id===id)closeOv(id)}
 window.addEventListener('resize',()=>{if(document.getElementById('screenOverview').classList.contains('active'))refreshOverview()})
 
+// ── AUTH ─────────────────────────────────────────────────────────
+async function sendMagicLink(){
+  const email=document.getElementById('loginEmail').value.trim()
+  if(!email){alert('Enter your email.');return}
+  const errEl=document.getElementById('loginError')
+  errEl.style.display='none'
+  try{
+    const{error}=await supa.auth.signInWithOtp({
+      email,
+      options:{emailRedirectTo:window.location.href}
+    })
+    if(error)throw error
+    document.getElementById('loginForm').style.display='none'
+    document.getElementById('loginSent').style.display='block'
+    document.getElementById('loginSentMsg').textContent=`We sent a magic link to ${email}. Tap it to sign in.`
+  }catch(e){
+    errEl.textContent=e.message||'Something went wrong. Try again.'
+    errEl.style.display='block'
+  }
+}
+
+async function signOut(){
+  if(!confirm('Sign out?'))return
+  await supa.auth.signOut()
+  supaUser=null
+  D=defaultData()
+  showLoginScreen()
+}
+
+function showLoginScreen(){
+  document.getElementById('loginScreen').style.display='flex'
+  document.getElementById('app').style.display='none'
+}
+
+function showApp(){
+  document.getElementById('loginScreen').style.display='none'
+  document.getElementById('app').style.display='flex'
+  // Update account email in settings
+  const emailEl=document.getElementById('accountEmail')
+  if(emailEl&&supaUser)emailEl.textContent=supaUser.email
+}
+
+function showSyncing(show){
+  // Simple visual indicator — could enhance later
+}
+
 // ── INIT ─────────────────────────────────────────────────────────
 applyDark()
-// Set initial display currency from first available window
-if(D.windows.length>0)displayCurrency='USD'
-refreshOverview()
+
+// Handle auth state
+supa.auth.onAuthStateChange(async(event,session)=>{
+  if(event==='SIGNED_IN'||event==='TOKEN_REFRESHED'){
+    supaUser=session.user
+    showSyncing(true)
+    await loadFromCloud()
+    showSyncing(false)
+    showApp()
+    refreshOverview()
+  }else if(event==='SIGNED_OUT'){
+    supaUser=null
+    D=defaultData()
+    showLoginScreen()
+  }
+})
+
+// Check for existing session on load
+;(async()=>{
+  const{data:{session}}=await supa.auth.getSession()
+  if(session){
+    supaUser=session.user
+    await loadFromCloud()
+    showApp()
+    refreshOverview()
+  }else{
+    showLoginScreen()
+  }
+})()
 </script>
 </body>
 </html>
