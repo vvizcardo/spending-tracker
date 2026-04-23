@@ -325,10 +325,11 @@ select.form-input{cursor:pointer;}
       <button class="period-btn active" id="balPeriodMonth" onclick="setBalPeriod('month')">This Month</button>
       <button class="period-btn" id="balPeriodWeek" onclick="setBalPeriod('week')">This Week</button>
     </div>
-    <div class="cur-switcher" style="padding:0 20px 8px;">
+    <div class="cur-switcher" style="padding:0 20px 4px;">
       <span class="cur-switcher-label">VIEW IN</span>
       <div id="balCurSwitcherPills" style="display:flex;gap:5px;overflow-x:auto;"></div>
     </div>
+    <div class="filter-scroll" id="balWindowFilters"></div>
     <div class="scroll-content">
       <div class="bal-hero" id="balHero"></div>
       <div class="bal-grid" id="balGrid"></div>
@@ -761,6 +762,9 @@ let editCardId=null,editCwId=null
 let editCardImgData=null,editCardUseImg=false
 let compareSelectedCats=new Set()
 let compareCatType='expense'
+let balCurrentWindow='ALL'
+let lastUsedWindow=null
+let lastUsedPayment=null
 
 function load(){
   try{
@@ -1134,7 +1138,16 @@ function renderFeed(txs){
     const src=currentMode==='income'?D.incomeTransactions:D.transactions
     const idx=src.indexOf(tx)
     const isInc=currentMode==='income'
-    return `<div class="tx-card" onclick="openDetail(${idx},${isInc})">
+    let pressTimer
+    const cardId='txcard_'+idx+'_'+isInc
+    return `<div class="tx-card" id="${cardId}"
+      onclick="openDetail(${idx},${isInc})"
+      ontouchstart="startLongPress(event,${idx},${isInc})"
+      ontouchend="cancelLongPress()"
+      ontouchmove="cancelLongPress()"
+      onmousedown="startLongPress(event,${idx},${isInc})"
+      onmouseup="cancelLongPress()"
+      onmouseleave="cancelLongPress()">
       <div class="tx-icon" style="background:${cat?cat.color+'20':'#6b728020'}">${cat?cat.emoji:'📦'}</div>
       <div class="tx-info">
         <div class="tx-cat-name">${cat?cat.name:'Uncategorized'}${tx.subcat?` — ${tx.subcat}`:''}</div>
@@ -1255,12 +1268,21 @@ function openAddTx(){
   document.getElementById('txAmt2').value=''
   document.getElementById('txDesc').value=''
   document.getElementById('addTxTitle').textContent=currentMode==='income'?'Add Income':'Add Expense'
-  document.getElementById('txWindow').innerHTML=D.windows.map(w=>`<option value="${w.id}">${w.name} (${w.currency})</option>`).join('')
+
+  // Build window select — pre-select last used
+  const winSel=document.getElementById('txWindow')
+  winSel.innerHTML=D.windows.map(w=>`<option value="${w.id}">${w.name} (${w.currency})</option>`).join('')
+  if(lastUsedWindow&&D.windows.find(w=>w.id===lastUsedWindow))winSel.value=lastUsedWindow
+
   populateCatSelect();populateSubcats()
-  // Payment methods: cash wallets + cards
+
+  // Payment methods — pre-select last used
   const cashOpts=D.cashWallets.map(cw=>`<option value="cash:${cw.id}">💵 Cash ${cw.currency}</option>`).join('')
   const cardOpts=D.cards.map(c=>`<option value="card:${c.id}">${c.emoji} ${c.name}</option>`).join('')
-  document.getElementById('txCard').innerHTML=`<option value="">— none —</option>`+cashOpts+cardOpts
+  const payEl=document.getElementById('txCard')
+  payEl.innerHTML=`<option value="">— none —</option>`+cashOpts+cardOpts
+  if(lastUsedPayment)payEl.value=lastUsedPayment
+
   onWindowChange();openOv('addTxOverlay')
 }
 function onWindowChange(){
@@ -1311,6 +1333,9 @@ function saveTx(){
     D.transactions.push(entry)
     if(cashWalletId){const cw=getCashWallet(cashWalletId);if(cw)cw.balance=(cw.balance||0)-amt1}
   }
+  // Remember last used
+  lastUsedWindow=winId
+  lastUsedPayment=paymentVal||null
   save();closeOv('addTxOverlay');haptic();refreshOverview()
 }
 
@@ -1319,6 +1344,24 @@ function haptic(style){
   try{
     if(window.navigator&&window.navigator.vibrate){window.navigator.vibrate(style==='light'?30:style==='error'?[50,30,50]:40)}
   }catch(e){}
+}
+
+// ── LONG PRESS ────────────────────────────────────────────────────
+let _pressTimer=null,_pressActive=false
+function startLongPress(e,idx,isIncome){
+  _pressActive=false
+  _pressTimer=setTimeout(()=>{
+    _pressActive=true
+    haptic('error')
+    if(confirm('Delete this transaction?')){
+      const src=isIncome?D.incomeTransactions:D.transactions
+      src.splice(idx,1)
+      save();haptic('error');refreshOverview()
+    }
+  },600)
+}
+function cancelLongPress(){
+  clearTimeout(_pressTimer)
 }
 
 // ── CARD IMAGE RENDER ─────────────────────────────────────────────
@@ -1425,6 +1468,7 @@ function setBalPeriod(p){
   document.getElementById('balPeriodWeek').classList.toggle('active',p==='week')
   renderBalance()
 }
+function setBalWindow(w){balCurrentWindow=w;renderBalance()}
 
 // ── BALANCE SCREEN ────────────────────────────────────────────────
 function renderBalance(){
@@ -1434,21 +1478,23 @@ function renderBalance(){
 
   // Determine period
   let periodLabel,expTxs,incTxs,prevExpTxs
+  const winFilter=t=>balCurrentWindow==='ALL'||t.windowId===balCurrentWindow
+
   if(balPeriod==='week'){
     const day=now.getDay(),sun=new Date(now);sun.setDate(now.getDate()-day)
     const sunStr=`${sun.getFullYear()}-${S(sun.getMonth()+1)}-${S(sun.getDate())}`
     const todayStr=todayISO()
-    expTxs=D.transactions.filter(t=>t.date>=sunStr&&t.date<=todayStr)
-    incTxs=D.incomeTransactions.filter(t=>t.date>=sunStr&&t.date<=todayStr)
+    expTxs=D.transactions.filter(t=>t.date>=sunStr&&t.date<=todayStr&&winFilter(t))
+    incTxs=D.incomeTransactions.filter(t=>t.date>=sunStr&&t.date<=todayStr&&winFilter(t))
     const prevSun=new Date(sun);prevSun.setDate(sun.getDate()-7)
     const prevSunStr=`${prevSun.getFullYear()}-${S(prevSun.getMonth()+1)}-${S(prevSun.getDate())}`
-    prevExpTxs=D.transactions.filter(t=>t.date>=prevSunStr&&t.date<sunStr)
+    prevExpTxs=D.transactions.filter(t=>t.date>=prevSunStr&&t.date<sunStr&&winFilter(t))
     periodLabel=`Week of ${sun.getDate()} ${mo[sun.getMonth()]}`
   }else{
     const curMo=curMonthKey(),prevMo=prevMonthKey()
-    expTxs=getTxForMonth(curMo,'expense')
-    incTxs=getTxForMonth(curMo,'income')
-    prevExpTxs=getTxForMonth(prevMo,'expense')
+    expTxs=getTxForMonth(curMo,'expense').filter(winFilter)
+    incTxs=getTxForMonth(curMo,'income').filter(winFilter)
+    prevExpTxs=getTxForMonth(prevMo,'expense').filter(winFilter)
     periodLabel=`${mo[now.getMonth()]} ${now.getFullYear()}`
   }
 
@@ -1460,6 +1506,14 @@ function renderBalance(){
 
   document.getElementById('balanceTitle').textContent='Balance'
   renderCurSwitcher('balCurSwitcherPills',balDisplayCurrency,function(cur){balDisplayCurrency=cur;renderBalance()})
+
+  // Window filter pills
+  const balWinContainer=document.getElementById('balWindowFilters')
+  if(balWinContainer){
+    const wins=[{id:'ALL',name:'All'},...D.windows]
+    balWinContainer.innerHTML=wins.map(w=>`<button class="pill${balCurrentWindow===w.id?' active':''}" onclick="setBalWindow('${w.id}')">${w.name}</button>`).join('')
+  }
+
   document.getElementById('balHero').innerHTML=`
     <div class="bal-month-label">${periodLabel.toUpperCase()} · NET</div>
     <div class="bal-total" style="color:${netColor}">${net>=0?'+':''}${bSym}${Math.abs(net).toFixed(2)}</div>
